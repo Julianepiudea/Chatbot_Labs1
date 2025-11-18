@@ -1,0 +1,5 @@
+ejecución de chatbot usando stramlit
+
+1. cd C:\Users\Investigación\Documents\Chatbot_Labs
+2. .venv\Scripts\activate
+3.py -m streamlit run app.py
