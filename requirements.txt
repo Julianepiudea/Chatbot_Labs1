@@ -1,6 +1,9 @@
 streamlit
 python-dotenv
-langchain==0.1.20
+langchain
+langchain-community
+langchain-openai
+langchain-text-splitters
 openai>=1.0.0
 tiktoken
 faiss-cpu
