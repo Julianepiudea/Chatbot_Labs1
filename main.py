@@ -1,11 +1,14 @@
-﻿from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
+﻿import os
 from dotenv import load_dotenv
-import os
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains import RetrievalQA
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chat_models import ChatOpenAI
+from langchain.document_loaders import PyPDFLoader
 
 load_dotenv()
 
@@ -108,7 +111,3 @@ def main():
             break
         respuesta = cadena_qa({"query": pregunta})
         print("🤖:", respuesta["result"])
-
-
-if __name__ == "__main__":
-    main()

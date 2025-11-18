@@ -1,11 +1,11 @@
-import os
+﻿import os
 from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 
 # Importa tus funciones SIN tocar main.py
 from main import cargar_documentos, crear_vectorstore, crear_cadena_qa
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 
 # Cargar variables desde .env (OPENAI_API_KEY)
 load_dotenv()
