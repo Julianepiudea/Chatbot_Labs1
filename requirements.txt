@@ -1,9 +1,0 @@
-streamlit
-python-dotenv
-langchain
-langchain-community
-langchain-openai
-openai>=1.0.0
-tiktoken
-faiss-cpu
-pypdf
