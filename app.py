@@ -1,9 +1,9 @@
-﻿import os
+import os
 from pathlib import Path
+
 import streamlit as st
 from dotenv import load_dotenv
 
-# Importa tus funciones SIN tocar main.py
 from main import cargar_documentos, crear_vectorstore, crear_cadena_qa
 from langchain.chat_models import ChatOpenAI
 
@@ -19,8 +19,8 @@ st.set_page_config(
 # Logo institucional
 st.sidebar.image("static/labmedico.jpg", use_container_width=True)
 
-st.title("🤖 Chatea con Claudia,  (herramienta en construcción Labmédico)")
-st.caption("Trabajando únicamente con los PDFs existentes en la carpeta `data/`.")
+st.title("🤖 Chatea con Claudia (herramienta en construcción Labmédico)")
+st.caption("Trabajando únicamente con los PDFs existentes en la carpeta `data/` (o la que elijas).")
 
 # ── Sidebar: Configuración ─────────────────────────────────────────────────────
 with st.sidebar:
@@ -34,17 +34,25 @@ with st.sidebar:
     except Exception:
         pass
 
-    api_key = st.text_input("OPENAI_API_KEY", type="password", value=default_key,
-                            help="Se leerá de .env/local o de Secrets (en la nube).")
+    api_key = st.text_input(
+        "OPENAI_API_KEY",
+        type="password",
+        value=default_key,
+        help="Se leerá de .env/local o de Secrets (en la nube).",
+    )
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
 
     st.divider()
-    data_dir = st.text_input("📁 Carpeta de PDFs", value="data",
-                             help="Ruta relativa o absoluta. Debe contener archivos .pdf.")
+    data_dir = st.text_input(
+        "📁 Carpeta de PDFs",
+        value="data",
+        help="Ruta relativa o absoluta. Debe contener archivos .pdf.",
+    )
     rebuild = st.button("🔧 Reconstruir índice")
 
 st.divider()
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def folder_signature(folder: str) -> str:
@@ -60,9 +68,13 @@ def folder_signature(folder: str) -> str:
             parts.append(f"{f.name}:0")
     return "|".join(parts) if parts else "empty"
 
+
 @st.cache_resource(show_spinner=True)
 def build_pipeline(signature: str, folder: str):
-    """Construye vectorstore y cadena QA usando tus funciones de main.py."""
+    """
+    Construye vectorstore y cadena QA usando tus funciones de main.py.
+    Usa la firma (signature) para invalidar la caché cuando cambian los PDFs.
+    """
     p = Path(folder)
     if not p.exists():
         raise FileNotFoundError(f"No existe la carpeta: {folder}")
@@ -70,12 +82,24 @@ def build_pipeline(signature: str, folder: str):
     if not pdfs:
         raise RuntimeError(f"No hay PDFs en '{folder}'. Agrega archivos .pdf.")
 
+    # Info rápida para debug
+    st.write("📁 PDFs detectados en la carpeta:")
+    for f in pdfs[:50]:  # muestra hasta 50 para no saturar
+        st.write("•", f.name)
+    if len(pdfs) > 50:
+        st.write(f"… y {len(pdfs) - 50} más.")
+
     documentos = cargar_documentos(folder)
     vectorstore = crear_vectorstore(documentos)
-    llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
-    return crear_cadena_qa(llm, vectorstore)
 
-# ── Preparar índice desde `data/` ─────────────────────────────────────────────
+    api_key = os.environ.get("OPENAI_API_KEY")
+    llm = ChatOpenAI(model_name="gpt-4o", temperature=0, openai_api_key=api_key)
+
+    cadena_qa = crear_cadena_qa(llm, vectorstore)
+    return cadena_qa
+
+
+# ── Preparar índice desde la carpeta elegida ───────────────────────────────────
 sig = folder_signature(data_dir)
 if rebuild:
     sig = sig + ":force"
@@ -91,7 +115,15 @@ except Exception as e:
 # ── Chat ──────────────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hola, soy Claudia. ¿Qué quieres consultar de los PDFs en 'data/'?"}
+        {
+            "role": "assistant",
+            "content": (
+                "Hola, soy Claudia. Puedo ayudarte con los procedimientos, "
+                "instructivos y documentos del laboratorio que están en la carpeta seleccionada. "
+                "Puedes hacer preguntas generales como *«explícame la prueba de ciclaje»* "
+                "o específicas como *«dame el paso a paso para la prueba de ciclaje»*."
+            ),
+        }
     ]
 
 # Historial
@@ -127,7 +159,10 @@ if prompt:
                     src = meta.get("source") or meta.get("file_path") or "desconocido"
                     st.markdown(f"**Fuente {i}:** `{src}`")
                     try:
-                        st.caption(doc.page_content[:500] + ("…" if len(doc.page_content) > 500 else ""))
+                        st.caption(
+                            doc.page_content[:500]
+                            + ("…" if len(doc.page_content) > 500 else "")
+                        )
                     except Exception:
                         pass
 

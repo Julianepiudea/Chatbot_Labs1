@@ -5,7 +5,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
-from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chat_models import ChatOpenAI
 from langchain.document_loaders import PyPDFLoader
@@ -32,8 +31,8 @@ def cargar_documentos(ruta_carpeta: str):
 
     # Text splitter para trocear las páginas en fragmentos más pequeños
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,   # tamaño aproximado del trozo (en caracteres)
-        chunk_overlap=200, # solapamiento entre trozos para no cortar ideas
+        chunk_size=1200,   # un poco más largos para conservar contexto
+        chunk_overlap=200, # solapamiento para no cortar ideas
     )
     chunks = splitter.split_documents(documentos)
     return chunks
@@ -49,65 +48,12 @@ def crear_vectorstore(documentos, batch_size: int = 64):
         raise ValueError("La lista de documentos está vacía; no se puede crear el índice.")
 
     # Modelo de embeddings de OpenAI
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+    api_key = os.getenv("OPENAI_API_KEY")
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-large",
+        openai_api_key=api_key,
+    )
 
     # Primer lote para inicializar FAISS
     primeros = documentos[:batch_size]
-    vectorstore = FAISS.from_documents(primeros, embeddings)
-
-    # Resto de documentos por lotes
-    for i in range(batch_size, len(documentos), batch_size):
-        batch = documentos[i : i + batch_size]
-        vectorstore.add_documents(batch)
-
-    return vectorstore
-
-
-# ───────────────────── Cadena de Preguntas y Respuestas ────────────────────────
-def crear_cadena_qa(llm, vectorstore):
-    prompt = PromptTemplate(
-        input_variables=["context", "question"],
-        template="""
-Eres Claudia, una asistente experta en documentos técnicos de laboratorio.
-Responde de forma clara, concisa y profesional usando solo la información del contexto.
-Si la respuesta no está en el contexto, di que no estás segura.
-
-Contexto:
-{context}
-
-Pregunta:
-{question}
-
-Respuesta:
-""",
-    )
-
-    chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=vectorstore.as_retriever(),
-        chain_type_kwargs={"prompt": prompt},
-        return_source_documents=True,
-    )
-    return chain
-
-
-# ─────────────────────────── Modo consola (opcional) ───────────────────────────
-def main():
-    print("📚 Cargando documentos desde 'data'...")
-    documentos = cargar_documentos("data")
-    print(f"📄 Fragmentos de texto cargados: {len(documentos)}")
-
-    print("🧠 Creando índice vectorial (FAISS)...")
-    vectorstore = crear_vectorstore(documentos)
-
-    llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
-    cadena_qa = crear_cadena_qa(llm, vectorstore)
-
-    print("🤖 Chatbot listo. Escribe tu pregunta (o 'salir'):")
-    while True:
-        pregunta = input("Tú: ")
-        if pregunta.lower() == "salir":
-            break
-        respuesta = cadena_qa({"query": pregunta})
-        print("🤖:", respuesta["result"])
+    vectorstore = FAISS.from_documents(primeros, embeddi_
