@@ -1,11 +1,10 @@
 import os
 from pathlib import Path
-
 import streamlit as st
 from dotenv import load_dotenv
 
 from main import cargar_documentos, crear_vectorstore, crear_cadena_qa
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 
 # Cargar variables desde .env (OPENAI_API_KEY)
 load_dotenv()
@@ -16,47 +15,30 @@ st.set_page_config(
     layout="wide",
 )
 
-# Logo institucional
 st.sidebar.image("static/labmedico.jpg", use_container_width=True)
 
 st.title("🤖 Chatea con Claudia (herramienta en construcción Labmédico)")
 st.caption("Trabajando únicamente con los PDFs existentes en la carpeta `data/` (o la que elijas).")
 
-# ── Sidebar: Configuración ─────────────────────────────────────────────────────
+# ── Sidebar: Configuración ──────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Configuración")
-
-    # 1) lee primero de .env / entorno
     default_key = os.environ.get("OPENAI_API_KEY", "")
-    # 2) si existen secrets (en Cloud), los usa
     try:
         default_key = st.secrets["OPENAI_API_KEY"]
     except Exception:
         pass
 
-    api_key = st.text_input(
-        "OPENAI_API_KEY",
-        type="password",
-        value=default_key,
-        help="Se leerá de .env/local o de Secrets (en la nube).",
-    )
+    api_key = st.text_input("OPENAI_API_KEY", type="password", value=default_key)
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
 
     st.divider()
-    data_dir = st.text_input(
-        "📁 Carpeta de PDFs",
-        value="data",
-        help="Ruta relativa o absoluta. Debe contener archivos .pdf.",
-    )
+    data_dir = st.text_input("📁 Carpeta de PDFs", value="data")
     rebuild = st.button("🔧 Reconstruir índice")
 
-st.divider()
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Función de firma de carpeta ─────────────────────────────────
 def folder_signature(folder: str) -> str:
-    """Firma basada en nombres y mtimes de los PDFs para cachear/invalidar el índice."""
     p = Path(folder)
     if not p.exists():
         return "missing"
@@ -68,13 +50,9 @@ def folder_signature(folder: str) -> str:
             parts.append(f"{f.name}:0")
     return "|".join(parts) if parts else "empty"
 
-
+# ── Construcción del índice ─────────────────────────────────────
 @st.cache_resource(show_spinner=True)
 def build_pipeline(signature: str, folder: str):
-    """
-    Construye vectorstore y cadena QA usando tus funciones de main.py.
-    Usa la firma (signature) para invalidar la caché cuando cambian los PDFs.
-    """
     p = Path(folder)
     if not p.exists():
         raise FileNotFoundError(f"No existe la carpeta: {folder}")
@@ -82,9 +60,8 @@ def build_pipeline(signature: str, folder: str):
     if not pdfs:
         raise RuntimeError(f"No hay PDFs en '{folder}'. Agrega archivos .pdf.")
 
-    # Info rápida para debug
     st.write("📁 PDFs detectados en la carpeta:")
-    for f in pdfs[:50]:  # muestra hasta 50 para no saturar
+    for f in pdfs[:50]:
         st.write("•", f.name)
     if len(pdfs) > 50:
         st.write(f"… y {len(pdfs) - 50} más.")
@@ -98,8 +75,7 @@ def build_pipeline(signature: str, folder: str):
     cadena_qa = crear_cadena_qa(llm, vectorstore)
     return cadena_qa
 
-
-# ── Preparar índice desde la carpeta elegida ───────────────────────────────────
+# ── Preparación del índice ──────────────────────────────────────
 sig = folder_signature(data_dir)
 if rebuild:
     sig = sig + ":force"
@@ -112,7 +88,7 @@ except Exception as e:
     st.error(f"No se pudo preparar el índice: {e}")
     st.stop()
 
-# ── Chat ──────────────────────────────────────────────────────────────────────
+# ── Chat y flujo de conversación ────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -126,7 +102,6 @@ if "messages" not in st.session_state:
         }
     ]
 
-# Historial
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -144,7 +119,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Pensando…"):
             try:
-                out = cadena_qa({"query": prompt})
+                out = cadena_qa.invoke({"query": prompt})
                 answer = out.get("result", "")
                 sources = out.get("source_documents", []) or []
             except Exception as e:
@@ -159,11 +134,9 @@ if prompt:
                     src = meta.get("source") or meta.get("file_path") or "desconocido"
                     st.markdown(f"**Fuente {i}:** `{src}`")
                     try:
-                        st.caption(
-                            doc.page_content[:500]
-                            + ("…" if len(doc.page_content) > 500 else "")
-                        )
+                        st.caption(doc.page_content[:500] + ("…" if len(doc.page_content) > 500 else ""))
                     except Exception:
                         pass
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
+
