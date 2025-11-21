@@ -4,6 +4,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from main import cargar_documentos, crear_vectorstore, crear_cadena_qa
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 
 # Cargar variables desde .env (OPENAI_API_KEY)
